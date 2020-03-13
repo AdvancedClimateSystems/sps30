@@ -6,8 +6,8 @@
  *
  *  =========================  Highlevel description ================================
  *
- *  This basic reading example sketch will connect to an SPS30 for getting data and
- *  display the available data. It will also set the automatic fan cleaning interval.
+ *  In this invidual reading example you can select which data AND in which order you
+ *  want the data to be displayed.
  *
  *  ================================ Disclaimer ======================================
  *  This program is distributed in the hope that it will be useful,
@@ -22,23 +22,26 @@
  *  NO support, delivered as is, have fun, good luck !!
  */
 
-#include "sps30_uart.h"
+#include "sps30.h"
 
 // Define debug level, make sure to change the serial interface in the printf.h to the one you want to use for debugging
-// 0 : no messages
-// 1 : request sending and receiving
-// 2 : request sending and receiving + show protocol errors
+// 0 : no messages.
+// 1 : request sending and receiving.
+// 2 : request sending and receiving + show protocol errors.
 #define DEBUG 0
 
-// Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30
+// Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30.
 #define _SERIAL Serial
 #define _SPS30 Serial1
 
-// Change the sensor read out frequency
+// Change the sensor read out frequency.
 #define READ_DELAY 3000
 
-// Define the auto cleaning interval in seconds
-#define AUTOCLEANINTERVAL 3600
+// Edit the array with the values you want to readout.
+// Any read value can be added, even multiple times.
+// Input options are defined in the readme.
+uint8_t values[] = {MassPM1, NumPM1, MassPM2, NumPM2};
+uint8_t value_size = sizeof(values) / sizeof(values[0]);
 
 //
 // You don't have to change anything below this
@@ -49,7 +52,6 @@ void serial_trigger(char *mess);
 void error_log(char *mess);
 void get_device_info();
 void print_device_info(char *mess, char *buf, uint8_t ret);
-void get_and_set_auto_clean_interval();
 bool read_sensor_data();
 
 SPS30_UART sps30;
@@ -78,8 +80,6 @@ void setup()
   }
 
   get_device_info();
-
-  get_and_set_auto_clean_interval();
 
   if (sps30.start() == true)
   {
@@ -140,97 +140,100 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
   }
 }
 
-// get_and_set_auto_clean_interval prints out and sets the cleaning interval
-void get_and_set_auto_clean_interval()
-{
-  uint32_t interval;
-  uint8_t ret;
-
-  ret = sps30.get_auto_clean_interval(&interval); // Read the auto cleaning interval
-  if (ret == ERR_OK)
-  {
-    _SERIAL.print(F("Current auto cleaning interval: "));
-    _SERIAL.print(interval);
-    _SERIAL.println(F(" seconds"));
-  }
-  else
-  {
-    _SERIAL.println("Could not read auto cleaning interval.");
-  }
-
-  // try to set interval
-  interval = AUTOCLEANINTERVAL;
-  ret = sps30.set_auto_clean_interval(interval);
-  if (ret == ERR_OK)
-  {
-    _SERIAL.print(F("Auto Clean interval now set : "));
-    _SERIAL.print(interval);
-    _SERIAL.println(F(" seconds"));
-  }
-  else
-  {
-    _SERIAL.println("Could not set the auto cleaning interval.");
-  }
-}
-
-// read_sensor_data reads the sensor data
 bool read_sensor_data()
 {
   static bool header = true;
-  uint8_t ret = 1;
-  uint8_t error_cnt = 0;
+  uint8_t ret, error_cnt = 0;
   struct sps_values val;
 
-  while (ret != ERR_OK)
+  if (header) // First run create the header.
   {
-    ret = sps30.get_values(&val);
-
-    if (ret == ERR_DATALENGTH) // Check if the data was ready yet
+    for (uint8_t i = 0; i < value_size; i++)
     {
-      if (error_cnt++ > 3)
+      switch (values[i])
       {
-        _SERIAL.print("Error during reading values: ");
-        _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-        return false;
+      case MassPM1:
+        _SERIAL.print(F("MassPM1\t"));
+        break;
+      case MassPM2:
+        _SERIAL.print(F("MassPM2\t"));
+        break;
+      case MassPM4:
+        _SERIAL.print(F("MassPM4\t"));
+        break;
+      case MassPM10:
+        _SERIAL.print(F("MassPM10\t"));
+        break;
+      case NumPM0:
+        _SERIAL.print(F("NumPM0\t"));
+        break;
+      case NumPM1:
+        _SERIAL.print(F("NumPM1\t"));
+        break;
+      case NumPM2:
+        _SERIAL.print(F("NumPM2\t"));
+        break;
+      case NumPM4:
+        _SERIAL.print(F("NumPM4\t"));
+        break;
+      case NumPM10:
+        _SERIAL.print(F("NumPM10\t"));
+        break;
+      case PartSize:
+        _SERIAL.print(F("Prtsize\t"));
+        break;
       }
-      delay(1000);
     }
 
-    else if (ret != ERR_OK) // If it is a different error
-    {
-      _SERIAL.print("Error during reading values: ");
-      _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-      return false;
-    }
-  }
-
-  if (header) // Only print the header the first time
-  {
-    _SERIAL.println(F("-------------Mass -----------    ------------- Number --------------   -Average-"));
-    _SERIAL.println(F("     Concentration [μg/m3]             Concentration [#/cm3]             [μm]"));
-    _SERIAL.println(F("P1.0\tP2.5\tP4.0\tP10\tP0.5\tP1.0\tP2.5\tP4.0\tP10\tPartSize\n"));
     header = false;
   }
 
-  _SERIAL.print(val.MassPM1);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.MassPM2);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.MassPM4);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.MassPM10);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.NumPM0);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.NumPM1);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.NumPM2);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.NumPM4);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.NumPM10);
-  _SERIAL.print(F("\t"));
-  _SERIAL.print(val.PartSize);
+  for (uint8_t i = 0; i < value_size; i++)
+  {
+    switch (values[i])
+    {
+    case MassPM1:
+      _SERIAL.print(sps30.get_mass_PM1());
+      _SERIAL.print(F("\t"));
+      break;
+    case MassPM2:
+      _SERIAL.print(sps30.get_mass_PM2());
+      _SERIAL.print(F("\t"));
+      break;
+    case MassPM4:
+      _SERIAL.print(sps30.get_mass_PM4());
+      _SERIAL.print(F("\t"));
+      break;
+    case MassPM10:
+      _SERIAL.print(sps30.get_mass_PM10());
+      _SERIAL.print(F("\t"));
+      break;
+    case NumPM0:
+      _SERIAL.print(sps30.get_num_PM0());
+      _SERIAL.print(F("\t"));
+      break;
+    case NumPM1:
+      _SERIAL.print(sps30.get_num_PM1());
+      _SERIAL.print(F("\t"));
+      break;
+    case NumPM2:
+      _SERIAL.print(sps30.get_num_PM2());
+      _SERIAL.print(F("\t"));
+      break;
+    case NumPM4:
+      _SERIAL.print(sps30.get_num_PM4());
+      _SERIAL.print(F("\t"));
+      break;
+    case NumPM10:
+      _SERIAL.print(sps30.get_num_PM10());
+      _SERIAL.print(F("\t"));
+      break;
+    case PartSize:
+      _SERIAL.print(sps30.get_part_size());
+      _SERIAL.print(F("\t"));
+      break;
+    }
+  }
   _SERIAL.print(F("\n"));
 }
 

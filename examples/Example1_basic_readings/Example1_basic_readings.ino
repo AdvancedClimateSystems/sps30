@@ -22,13 +22,10 @@
     NO support, delivered as is, have fun, good luck !!
 */
 
-#include "sps30_uart.h"
+#include "sps30.h"
 
-// Define debug level, make sure to change the serial interface in the printf.h to the one you want to use for debugging
-// 0 : no messages
-// 1 : request sending and receiving
-// 2 : request sending and receiving + show protocol errors
-#define DEBUG 2
+// Enable the debugging mode
+#define DEBUG true
 
 // Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30
 #define _SERIAL Serial
@@ -48,7 +45,7 @@ void get_device_info();
 void print_device_info(char *mess, char *buf, uint8_t ret);
 bool read_sensor_data();
 
-SPS30_UART sps30;
+SPS30 sps30;
 
 void setup()
 {
@@ -60,7 +57,10 @@ void setup()
   serial_trigger("SPS30-Example1: Basic reading. press <enter> to start");
   _SERIAL.println(F("Trying to connect"));
 
-  sps30.enable_debugging(DEBUG); // Set the debug level.
+  if (DEBUG == true)
+  {
+    sps30.enable_debugging(&_SERIAL); // Enable debugging.
+  }
 
   _SPS30.begin(115200);              // Start the Serial port you want to use at a baudrate of 115200bps.
   if (sps30.begin(&_SPS30) == false) // Pass the serial port along to the library and check if the SPS30 is available.
@@ -97,22 +97,22 @@ void loop()
 void get_device_info()
 {
   char buf[32];
-  uint8_t ret;
+  bool succeeded;
 
-  ret = sps30.get_serial_number(buf, 32); // Read the serial number
-  print_device_info("Serial number", buf, ret);
+  succeeded = sps30.get_serial_number(buf, 32); // Read the serial number
+  print_device_info("Serial number", buf, succeeded);
 
-  ret = sps30.get_product_name(buf, 32); // Read the product name
-  print_device_info("Product name", buf, ret);
+  succeeded = sps30.get_product_name(buf, 32); // Read the product name
+  print_device_info("Product name", buf, succeeded);
 
-  ret = sps30.get_article_code(buf, 32); // Read the article code
-  print_device_info("Article code", buf, ret);
+  succeeded = sps30.get_article_code(buf, 32); // Read the article code
+  print_device_info("Article code", buf, succeeded);
 }
 
 // print_device_info prints a string based on the ret value and the provided message
-void print_device_info(char *mess, char *buf, uint8_t ret)
+void print_device_info(char *mess, char *buf, bool succeeded)
 {
-  if (ret == ERR_OK)
+  if (succeeded == true)
   {
     _SERIAL.print(mess);
     _SERIAL.print(" : ");
@@ -125,12 +125,14 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
     {
       _SERIAL.println(F("not available"));
     }
+    _SERIAL.println("");
   }
   else
   {
-    _SERIAL.print("could not get the");
+    _SERIAL.print("could not get the ");
     _SERIAL.print(mess);
     _SERIAL.println(".");
+    _SERIAL.println("");
   }
 }
 
@@ -138,34 +140,15 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
 bool read_sensor_data()
 {
   static bool header = true;
-  uint8_t ret = 1;
   uint8_t error_cnt = 0;
   struct sps_values val;
 
-  while (ret != ERR_OK)
+  while (sps30.get_values(&val) == false)
   {
-    ret = sps30.get_values(&val);
-
-    if (ret == ERR_DATALENGTH) // Check if the data was ready yet
-    {
-      if (error_cnt++ > 3)
-      {
-        _SERIAL.print("Error during reading values: ");
-        _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-        return false;
-      }
-      delay(1000);
-    }
-
-    else if (ret != ERR_OK) // If it is a different error
-    {
-      _SERIAL.print("Error during reading values: ");
-      _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-      return false;
-    }
+    delay(1000); // Try every second to get new values.
   }
 
-  if (header) // Only print the header the first time
+  if (header) // Only print the header the first time.
   {
     _SERIAL.println(F("-------------Mass -----------    ------------- Number --------------   -Average-"));
     _SERIAL.println(F("     Concentration [μg/m3]             Concentration [#/cm3]             [μm]"));

@@ -25,8 +25,7 @@ PartSize	KEYWORD1
 # Methods and Functions (KEYWORD2)
 #######################################
 
-SPS30_UART	KEYWORD2
-SPS30_I2C KEYWORD2
+SPS30	KEYWORD2
 begin	KEYWORD2
 enable_debugging	KEYWORD2
 probe	KEYWORD2
@@ -50,18 +49,4 @@ get_part_size	KEYWORD2
 get_auto_clean_interval	KEYWORD2
 set_auto_clean_interval	KEYWORD2
 clean	KEYWORD2
-
-#######################################
-# Constants (LITERAL1)
-#######################################
-
-ERR_OK	LITERAL1
-ERR_DATALENGTH	LITERAL1
-ERR_UNKNOWNCMD	LITERAL1
-ERR_ACCESSRIGHT	LITERAL1
-ERR_PARAMETER	LITERAL1
-ERR_OUTOFRANGE	LITERAL1
-ERR_CMDSTATE	LITERAL1
-ERR_TIMEOUT	LITERAL1
-ERR_PROTOCOL	LITERAL1
 
