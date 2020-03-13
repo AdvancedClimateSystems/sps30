@@ -30,6 +30,11 @@
 SPS30::SPS30(void)
 {
     memset(_reported, 0x1, sizeof(_reported)); // Fill the _reported array with ones
+
+    if (I2C_LENGTH >= 64)
+    {
+        _i2c_max_length = true;
+    }
 }
 
 // Initialize the communication port, starting of the communication port should happen in main sketch
@@ -41,6 +46,7 @@ bool SPS30::begin(Stream *the_uart)
     return probe();
 }
 
+// Initialize the communication port, starting of the communication port should happen in main sketch
 bool SPS30::begin(TwoWire *the_wire)
 {
     _i2c = the_wire;
@@ -173,12 +179,15 @@ bool SPS30::get_values(struct sps_values *v)
     v->MassPM2 = byte_to_float(&response.data[4]);
     v->MassPM4 = byte_to_float(&response.data[8]);
     v->MassPM10 = byte_to_float(&response.data[12]);
-    v->NumPM0 = byte_to_float(&response.data[16]);
-    v->NumPM1 = byte_to_float(&response.data[20]);
-    v->NumPM2 = byte_to_float(&response.data[24]);
-    v->NumPM4 = byte_to_float(&response.data[28]);
-    v->NumPM10 = byte_to_float(&response.data[32]);
-    v->PartSize = byte_to_float(&response.data[36]);
+    if (!_i2c_mode || _i2c_max_length > 20)
+    {
+        v->NumPM0 = byte_to_float(&response.data[16]);
+        v->NumPM1 = byte_to_float(&response.data[20]);
+        v->NumPM2 = byte_to_float(&response.data[24]);
+        v->NumPM4 = byte_to_float(&response.data[28]);
+        v->NumPM10 = byte_to_float(&response.data[32]);
+        v->PartSize = byte_to_float(&response.data[36]);
+    }
 }
 
 // Private functions
@@ -219,7 +228,7 @@ bool SPS30::send_command(Message *response, uint8_t command, uint32_t parameter)
 
     if (_i2c_mode)
     {
-        return false;
+        return I2C_send_command(response, command, parameter);
     }
     else
     {
@@ -276,12 +285,230 @@ float SPS30::get_single_value(uint8_t value)
     }
 }
 
+bool SPS30::I2C_send_command(Message *response, uint8_t command, uint32_t parameter)
+{
+    if (command == READ_DEVICE_PRODUCT_NAME) // The I2C doesn't have a read device product name
+    {
+        return true;
+    }
+
+    I2C_create_command(response, command, parameter);
+
+    if (!I2C_send(response))
+    {
+        return false;
+    }
+
+    if (response->read_length != 0)
+    {
+        if (!I2C_read(response))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool SPS30::I2C_read(Message *message)
+{
+    // Request amount data from the sensor with CRC's
+    _i2c->requestFrom(message->address, (uint8_t)(message->read_length / 2 * 3));
+
+    int i = 0;
+    uint8_t data[3];
+
+    message->length = 0;
+
+    while (_i2c->available())
+    {
+        data[i++] = _i2c->read();
+
+        if (i = 3)
+        {
+            uint8_t crc = I2C_calculate_CRC(data);
+            if (data[2] != crc)
+            {
+                if (_SPS30_debug)
+                {
+                    _debug->print("I2C CRC error: Expected ");
+                    _debug->print(data[2]);
+                    _debug->print(" calculated ");
+                    _debug->println(crc);
+                }
+                return false;
+            }
+
+            message->data[message->length++] = data[0];
+            message->data[message->length++] = data[1];
+
+            i = 0;
+
+            if (message->length >= message->read_length)
+            {
+                break;
+            }
+        }
+    }
+
+    if (message->length == 0)
+    {
+        if (_SPS30_debug)
+        {
+            _debug->println("Error: Received NO bytes");
+        }
+        return false;
+    }
+
+    if (message->length == message->read_length)
+    {
+        return true;
+    }
+
+    if (_SPS30_debug)
+    {
+        _debug->print("Error: Expected bytes : ");
+        _debug->print(message->read_length);
+        _debug->print(", Received bytes ");
+        _debug->println(message->length);
+    }
+
+    return false;
+}
+
+bool SPS30::I2C_send(Message *message)
+{
+    if (_SPS30_debug)
+    {
+        _debug->print("I2C Sending: ");
+        _debug->print(message->address);
+
+        for (uint8_t i = 0; i < message->length; i++)
+        {
+            _debug->print(" ");
+            _debug->print(message->data[i], HEX);
+        }
+
+        _debug->println("");
+    }
+
+    _i2c->beginTransmission(message->address);
+    _i2c->write(message->data, message->length);
+
+    if (!_i2c->endTransmission())
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t parameter)
+{
+    int i = 0;
+    message->address = 0x69;
+    message->length = 0;
+    message->read_length = parameter;
+
+    switch (command)
+    {
+    case START_MEASUREMENT:
+        message->command = I2C_START_MEASUREMENT;
+        message->length = 3;       // Add the data length
+        message->data[i++] = 0x03; // Measurement mode
+        message->data[i++] = 0x00; // Dummy byte
+        message->data[i++] = I2C_calculate_CRC(message->data);
+        break;
+
+    case STOP_MEASUREMENT:
+        message->command = I2C_STOP_MEASUREMENT;
+        break;
+
+    case READ_DATA_READY:
+        message->command = I2C_READ_DATA_READY;
+        message->read_length = 2;
+        break;
+
+    case READ_MEASURED_VALUE:
+        message->command = I2C_READ_MEASURED_VALUE;
+        message->read_length = 40;
+        break;
+
+    case START_FAN_CLEANING:
+        message->command = I2C_START_FAN_CLEANING;
+        break;
+
+    case RESET:
+        message->command = I2C_RESET;
+        break;
+
+    case READ_DEVICE_ARTICLE_CODE:
+        message->command = I2C_READ_DEVICE_ARTICLE_CODE;
+        message->read_length = 32;
+        break;
+
+    case READ_DEVICE_SERIAL_NUMBER:
+        message->command = I2C_READ_DEVICE_SERIAL_NUMBER;
+        message->read_length = 32;
+        break;
+
+    case READ_AUTO_CLEANING:
+        message->command = I2C_READ_WRITE_AUTO_CLEANING;
+        message->read_length = 4;
+        break;
+
+    case WRITE_AUTO_CLEANING:
+        message->command = I2C_READ_WRITE_AUTO_CLEANING;
+        message->read_length = 0;
+        message->length = 6;                         // Add the data length
+        message->data[i++] = parameter >> 24 & 0xFF; // Split the parameter in bytes
+        message->data[i++] = parameter >> 16 & 0xFF;
+        message->data[i++] = I2C_calculate_CRC(message->data);
+        message->data[i++] = parameter >> 8 & 0xFF;
+        message->data[i++] = parameter & 0xFF;
+        message->data[i++] = I2C_calculate_CRC(message->data + 3);
+        break;
+
+    default:
+        return false;
+    }
+
+    return true;
+}
+
+uint8_t SPS30::I2C_calculate_CRC(uint8_t *data)
+{
+    uint8_t crc = I2C_CRC_INITIALIZATION;
+    for (int i = 0; i < 2; i++)
+    {
+        crc ^= data[i];
+        for (uint8_t bit = 8; bit > 0; --bit)
+        {
+            if (crc & 0x80)
+            {
+                crc = (crc << 1) ^ I2C_CRC_POLYNOMIAL;
+            }
+            else
+            {
+                crc = (crc << 1);
+            }
+        }
+    }
+
+    return crc;
+}
+
 // SHDLC_send_command sends a command and reads back the response into a Message struct
 bool SPS30::SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter)
 {
+    if (command == READ_DATA_READY) // The SHDLC doesn't have a data ready command
+    {
+        return true;
+    }
+
     SHDLC_create_command(response, command, parameter);
 
-    _serial->flush(); // Flush anything pending on the set serial
+    _serial->flush(); // Flush anything pending on the serial port
 
     if (!SHDLC_send(response)) // Send the created command
     {
@@ -550,7 +777,7 @@ bool SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t par
     tmp = SHDLC_calculate_CRC(message, false);
     i = byte_stuffing(message->data, tmp, i);
 
-    return true; // return the length off the buffer
+    return true;
 }
 
 // SHDLC_calculate_CRC calculates the CRC, the CRC is calculated by taking the inverse of the LSB of the sum of all the bytes between the headers->

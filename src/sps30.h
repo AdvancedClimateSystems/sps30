@@ -31,6 +31,26 @@
 #define MAX_RECEIVE_BUFFER_LENGTH 80 // ~Max response length with byte stuffing
 #define MAX_DATA_LENGTH 40           // Max data length = 40
 
+#define I2C_CRC_POLYNOMIAL 0x31
+#define I2C_CRC_INITIALIZATION 0xFF
+
+#define I2C_LENGTH 32
+
+#if defined BUFFER_LENGTH // Arduino  & ESP8266 & Softwire
+#undef I2C_LENGTH
+#define I2C_LENGTH BUFFER_LENGTH
+#endif
+
+#if defined I2C_BUFFER_LENGTH // ESP32
+#undef I2C_LENGTH
+#define I2C_LENGTH I2C_BUFFER_LENGTH
+#endif
+
+#if defined ARDUINO_ARCH_SAMD || defined ARDUINO_ARCH_SAM21D // Depending on definition in wire.h (RingBufferN<256> rxBuffer;)
+#undef I2C_LENGTH
+#define I2C_LENGTH 256
+#endif
+
 // Struct containing sensor values
 typedef struct sps_values
 {
@@ -46,12 +66,14 @@ typedef struct sps_values
     float PartSize; // Typical Particle Size [μm]
 };
 
+// The message struct contains all the relevant fields for I2C and SHDLC messages to the SPS30
 typedef struct Message
 {
     uint16_t address;
     uint16_t command;
     uint8_t state;
     uint8_t length;
+    uint8_t read_length;
     uint8_t data[MAX_DATA_LENGTH];
 };
 
@@ -74,6 +96,7 @@ enum commands
 {
     START_MEASUREMENT,
     STOP_MEASUREMENT,
+    READ_DATA_READY,
     READ_MEASURED_VALUE,
     START_FAN_CLEANING,
     RESET,
@@ -111,6 +134,19 @@ enum SHDLC_commands
     SHDLC_STATE_BYTE = 0x03,  // Byte storing the state message
     SHDLC_LENGTH_BYTE = 0x04, // Byte storing the message length
     SHDLC_DATA_BYTE = 0x05    // First byte containing data
+};
+
+enum I2C_commands
+{
+    I2C_START_MEASUREMENT = 0x0010,
+    I2C_STOP_MEASUREMENT = 0x0104,
+    I2C_READ_DATA_READY = 0x0202,
+    I2C_READ_MEASURED_VALUE = 0x0300,
+    I2C_START_FAN_CLEANING = 0x5607,
+    I2C_RESET = 0xD304,
+    I2C_READ_DEVICE_ARTICLE_CODE = 0xD025,
+    I2C_READ_DEVICE_SERIAL_NUMBER = 0xD033,
+    I2C_READ_WRITE_AUTO_CLEANING = 0x8004
 };
 
 #define TIME_OUT 200   // Timeout to prevent deadlock read
@@ -154,7 +190,8 @@ public:
     float get_part_size() { return (get_single_value(PartSize)); }
 
 private:
-    bool _i2c_mode;
+    bool _i2c_mode = false;
+    bool _i2c_max_length = false;
 
     bool _SPS30_debug = false; // Program debug level
     bool _started = false;     // Indicate the measurement has started
@@ -165,6 +202,12 @@ private:
     float get_single_value(uint8_t value);
 
     //I2C functions
+    bool I2C_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
+    bool I2C_read(Message *message);
+    bool I2C_send(Message *message);
+
+    bool I2C_create_command(Message *message, uint8_t command, uint32_t parameter = 0);
+    uint8_t I2C_calculate_CRC(uint8_t *data);
 
     // SHDLC functions
     bool SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
