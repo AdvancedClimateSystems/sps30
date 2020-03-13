@@ -139,20 +139,11 @@ void print_device_info(char *mess, char *buf, bool succeeded)
 // read_sensor_data reads the sensor data
 bool read_sensor_data()
 {
-  static bool header = true;
   struct sps_values val;
 
   while (sps30.get_values(&val) == false)
   {
     delay(1000); // Try every second to get new values.
-  }
-
-  if (header) // Only print the header the first time.
-  {
-    _SERIAL.println(F("-------------Mass -----------    ------------- Number --------------   -Average-"));
-    _SERIAL.println(F("     Concentration [μg/m3]             Concentration [#/cm3]             [μm]"));
-    _SERIAL.println(F("P1.0\tP2.5\tP4.0\tP10\tP0.5\tP1.0\tP2.5\tP4.0\tP10\tPartSize\n"));
-    header = false;
   }
 
   _SERIAL.print(val.MassPM1);

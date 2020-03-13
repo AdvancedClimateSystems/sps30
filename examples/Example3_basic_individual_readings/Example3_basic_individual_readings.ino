@@ -143,7 +143,6 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
 bool read_sensor_data()
 {
   static bool header = true;
-  uint8_t ret, error_cnt = 0;
   struct sps_values val;
 
   if (header) // First run create the header.

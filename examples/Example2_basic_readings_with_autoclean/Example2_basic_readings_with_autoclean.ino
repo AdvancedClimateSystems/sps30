@@ -177,31 +177,11 @@ void get_and_set_auto_clean_interval()
 bool read_sensor_data()
 {
   static bool header = true;
-  uint8_t ret = 1;
-  uint8_t error_cnt = 0;
   struct sps_values val;
 
-  while (ret != ERR_OK)
+  while (sps30.get_values(&val) == false)
   {
-    ret = sps30.get_values(&val);
-
-    if (ret == ERR_DATALENGTH) // Check if the data was ready yet
-    {
-      if (error_cnt++ > 3)
-      {
-        _SERIAL.print("Error during reading values: ");
-        _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-        return false;
-      }
-      delay(1000);
-    }
-
-    else if (ret != ERR_OK) // If it is a different error
-    {
-      _SERIAL.print("Error during reading values: ");
-      _SERIAL.println(ret, HEX); // Error messages are documented in the readme
-      return false;
-    }
+    delay(1000); // Try every second to get new values.
   }
 
   if (header) // Only print the header the first time
