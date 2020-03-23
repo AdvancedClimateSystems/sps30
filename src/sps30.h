@@ -158,7 +158,7 @@ public:
     SPS30(void);
 
     bool begin(Stream *the_uart = &Serial1); // If user doesn't specify Serial1 will be used
-    bool begin(TwoWire *the_wire = &Wire);
+    bool begin(TwoWire *the_wire);
 
     void enable_debugging(Stream *debug = &Serial);
     void disable_debugging();

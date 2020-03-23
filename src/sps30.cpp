@@ -299,6 +299,8 @@ bool SPS30::I2C_send_command(Message *response, uint8_t command, uint32_t parame
         return false;
     }
 
+    delay(RX_DELAY_MS); // Give the SPS30 some time to respond
+
     if (response->read_length != 0)
     {
         if (!I2C_read(response))
@@ -322,6 +324,7 @@ bool SPS30::I2C_read(Message *message)
 
     while (_i2c->available())
     {
+        _debug->print("HI");
         data[i++] = _i2c->read();
 
         if (i = 3)
@@ -381,7 +384,9 @@ bool SPS30::I2C_send(Message *message)
     if (_SPS30_debug)
     {
         _debug->print("I2C Sending: ");
-        _debug->print(message->address);
+        _debug->print(message->address, HEX);
+        _debug->print(" ");
+        _debug->print(message->command, HEX);
 
         for (uint8_t i = 0; i < message->length; i++)
         {
@@ -393,6 +398,8 @@ bool SPS30::I2C_send(Message *message)
     }
 
     _i2c->beginTransmission(message->address);
+    _i2c->write((message->command >> 8) & 0x00FF);
+    _i2c->write((message->command) & 0xFF);
     _i2c->write(message->data, message->length);
 
     if (!_i2c->endTransmission())
