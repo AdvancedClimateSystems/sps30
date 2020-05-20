@@ -52,7 +52,7 @@
 #endif
 
 // Struct containing sensor values
-typedef struct sps_values
+typedef struct Measurements
 {
     float MassPM1;  // Mass Concentration PM1.0 [μg/m3]
     float MassPM2;  // Mass Concentration PM2.5 [μg/m3]
@@ -77,6 +77,16 @@ typedef struct Message
     uint8_t data[MAX_DATA_LENGTH];
 };
 
+// The version struct contains all the version information.
+typedef struct Version
+{
+    uint8_t firmware_major;
+    uint8_t firmware_minor;
+    uint8_t hardware;
+    uint8_t SHDLC_major;
+    uint8_t SHDLC_minor;
+};
+
 // Enum for retrieval of single values
 enum values
 {
@@ -92,18 +102,27 @@ enum values
     PartSize
 };
 
+enum status
+{
+    SPEED,
+    LASER,
+    FAN
+};
+
 enum commands
 {
     START_MEASUREMENT,
     STOP_MEASUREMENT,
     READ_DATA_READY,
     READ_MEASURED_VALUE,
+    SLEEP,
+    WAKE_UP,
     START_FAN_CLEANING,
     RESET,
-    READ_DEVICE_INFO,
-    READ_DEVICE_PRODUCT_NAME,
-    READ_DEVICE_ARTICLE_CODE,
+    READ_DEVICE_PRODUCT_TYPE,
     READ_DEVICE_SERIAL_NUMBER,
+    READ_VERSION,
+    READ_STATUS_REGISTER,
     AUTO_CLEANING_INTERVAL,
     READ_AUTO_CLEANING,
     WRITE_AUTO_CLEANING
@@ -114,26 +133,28 @@ enum SHDLC_commands
     SHDLC_START_MEASUREMENT = 0x00,
     SHDLC_STOP_MEASUREMENT = 0x01,
     SHDLC_READ_MEASURED_VALUE = 0x03,
-    SHDLC_READ_MEASURED_VALUE_LENGTH = 0x28, // A read measurement message is 40 bytes long
+    SHDLC_SLEEP = 0x10,   // Software version 2.0
+    SHDLC_WAKE_UP = 0x11, // Software version 2.0
     SHDLC_START_FAN_CLEANING = 0x56,
     SHDLC_RESET = 0xD3,
 
-    SHDLC_READ_DEVICE_INFO = 0xD0, // Generic device request
-    SHDLC_READ_DEVICE_PRODUCT_NAME = 0xF1,
-    SHDLC_READ_DEVICE_ARTICLE_CODE = 0xF2,
-    SHDLC_READ_DEVICE_SERIAL_NUMBER = 0xF3,
+    SHDLC_READ_DEVICE_INFO = 0xD0,          // Generic device request
+    SHDLC_READ_DEVICE_PRODUCT_TYPE = 0x00,  // Request product type
+    SHDLC_READ_DEVICE_SERIAL_NUMBER = 0x03, // Request serial number
+
+    SHDLC_READ_VERSION = 0xD1,
+    SHDCL_READ_STATUS_REGISTER = 0xD2, // Software version 2.2
 
     SHDLC_AUTO_CLEANING_INTERVAL = 0x80, // Generic autoclean request
-    SHDLC_READ_AUTO_CLEANING = 0x81,     // Read autoclean
-    SHDLC_WRITE_AUTO_CLEANING = 0x82,    // Write autoclean
 
     SHDLC_HEADER = 0x7E,        // Header & trailer byte
     SHDLC_STUFFING_BYTE = 0x7D, // Stuffing byte
     SHDLC_ADDRESS_BYTE = 0x01,
     SHDLC_COMMAND_BYTE = 0x02,
-    SHDLC_STATE_BYTE = 0x03,  // Byte storing the state message
-    SHDLC_LENGTH_BYTE = 0x04, // Byte storing the message length
-    SHDLC_DATA_BYTE = 0x05    // First byte containing data
+    SHDLC_STATE_BYTE = 0x03,                // Byte storing the state message
+    SHDLC_LENGTH_BYTE = 0x04,               // Byte storing the message length
+    SHDLC_DATA_BYTE = 0x05,                 // First byte containing data
+    SHDLC_READ_MEASURED_VALUE_LENGTH = 0x28 // A read measurement message is 40 bytes long
 };
 
 enum I2C_commands
@@ -142,11 +163,16 @@ enum I2C_commands
     I2C_STOP_MEASUREMENT = 0x0104,
     I2C_READ_DATA_READY = 0x0202,
     I2C_READ_MEASURED_VALUE = 0x0300,
+    I2C_SLEEP = 0x1001,   // Software version 2.0
+    I2C_WAKE_UP = 0x1103, // Software version 2.0
     I2C_START_FAN_CLEANING = 0x5607,
-    I2C_RESET = 0xD304,
-    I2C_READ_DEVICE_ARTICLE_CODE = 0xD025,
-    I2C_READ_DEVICE_SERIAL_NUMBER = 0xD033,
-    I2C_READ_WRITE_AUTO_CLEANING = 0x8004
+    I2C_READ_WRITE_AUTO_CLEANING = 0x8004,
+    I2C_READ_PRODUCT_TYPE = 0xD002,
+    I2C_READ_SERIAL_NUMBER = 0xD033,
+    I2C_READ_VERSION = 0xD100,
+    I2C_READ_DEVICE_STATUS_REGISTER = 0xD206,  // Software version 2.2
+    I2C_CLEAR_DEVICE_STATUS_REGISTER = 0xD210, // Software version 2.0
+    I2C_RESET = 0xD304
 };
 
 #define TIME_OUT 200   // Timeout to prevent deadlock read
@@ -157,26 +183,33 @@ class SPS30
 public:
     SPS30(void);
 
-    bool begin(Stream *the_uart = &Serial1); // If user doesn't specify Serial1 will be used
-    bool begin(TwoWire *the_wire = &Wire);
+    boolean begin(Stream *the_uart = &Serial1); // If user doesn't specify Serial1 will be used
+    boolean begin(TwoWire *the_wire);
 
     void enable_debugging(Stream *debug = &Serial);
     void disable_debugging();
 
-    bool probe();
-    bool reset();
-    bool start();
-    bool stop();
-    bool clean();
+    boolean probe();
+    boolean reset();
+    boolean start();
+    boolean stop();
+    boolean clean();
+    boolean sleep();
+    boolean wake_up();
 
     uint32_t get_auto_clean_interval();
-    bool set_auto_clean_interval(uint32_t val);
+    boolean set_auto_clean_interval(uint32_t val);
 
-    bool get_serial_number(char *ser, uint8_t len) { return (get_device_info(READ_DEVICE_SERIAL_NUMBER, ser, len)); }
-    bool get_article_code(char *ser, uint8_t len) { return (get_device_info(READ_DEVICE_ARTICLE_CODE, ser, len)); }
-    bool get_product_name(char *ser, uint8_t len) { return (get_device_info(READ_DEVICE_PRODUCT_NAME, ser, len)); }
+    boolean get_serial_number(char *ser, uint8_t len) { return get_device_info(SHDLC_READ_DEVICE_SERIAL_NUMBER, ser, len); }
+    boolean get_product_type(char *ser, uint8_t len) { return get_device_info(SHDLC_READ_DEVICE_PRODUCT_TYPE, ser, len); }
 
-    bool get_values(struct sps_values *v);
+    boolean read_version(Version *response);
+
+    boolean read_speed_status(boolean *error, boolean clear = false) { return get_device_status(SPEED, error, clear); }
+    boolean read_fan_status(boolean *error, boolean clear = false) { return get_device_status(FAN, error, clear); }
+    boolean read_laser_status(boolean *error, boolean clear = false) { return get_device_status(LASER, error, clear); }
+
+    boolean get_values(Measurements *v);
 
     float get_mass_PM1() { return (get_single_value(MassPM1)); }
     float get_mass_PM2() { return (get_single_value(MassPM2)); }
@@ -190,32 +223,33 @@ public:
     float get_part_size() { return (get_single_value(PartSize)); }
 
 private:
-    bool _i2c_mode = false;
-    bool _i2c_max_length = false;
+    boolean _i2c_mode = false;       // If it is in I2C mode, it isn't in UART mode and vice versa
+    boolean _i2c_max_length = false; // Do we need to account for a small I2C buffer?
 
-    bool _SPS30_debug = false; // Program debug level
-    bool _started = false;     // Indicate the measurement has started
-    uint8_t _reported[11];     // Use as cache indicator single value
+    boolean _SPS30_debug = false; // Program debug level
+    boolean _started = false;     // Indicate the measurement has started
+    uint8_t _reported[11];        // Use as cache indicator single value
 
-    bool send_command(Message *response, uint8_t command, uint32_t parameter = 0);
-    bool get_device_info(uint8_t type, char *ser, uint8_t len);
+    boolean send_command(Message *response, uint8_t command, uint32_t parameter = 0);
     float get_single_value(uint8_t value);
+    boolean get_device_info(uint8_t command, char *ser, uint8_t len);
+    boolean get_device_status(uint8_t command, boolean *error, boolean clear);
 
     //I2C functions
-    bool I2C_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
-    bool I2C_read(Message *message);
-    bool I2C_send(Message *message);
+    boolean I2C_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
+    boolean I2C_read(Message *message);
+    boolean I2C_send(Message *message);
 
-    bool I2C_create_command(Message *message, uint8_t command, uint32_t parameter = 0);
+    boolean I2C_create_command(Message *message, uint8_t command, uint32_t parameter = 0);
     uint8_t I2C_calculate_CRC(uint8_t *data);
 
     // SHDLC functions
-    bool SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
-    bool SHDLC_read(Message *message);
-    bool SHDLC_send(Message *message);
+    boolean SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter = 0);
+    boolean SHDLC_read(Message *message);
+    boolean SHDLC_send(Message *message);
 
-    bool SHDLC_create_command(Message *message, uint8_t command, uint32_t parameter = 0);
-    uint8_t SHDLC_calculate_CRC(Message *message, bool received);
+    boolean SHDLC_create_command(Message *message, uint8_t command, uint32_t parameter = 0);
+    uint8_t SHDLC_calculate_CRC(Message *message, boolean received);
 
     uint8_t byte_stuffing(uint8_t *buffer, uint8_t value, uint8_t offset);
     uint8_t byte_unstuffing(uint8_t value);

@@ -24,12 +24,12 @@
 
 #include "sps30.h"
 
-// Public functions
+// Public functions.
 
-// Constructor and initializes variables
+// Constructor and initializes variables.
 SPS30::SPS30(void)
 {
-    memset(_reported, 0x1, sizeof(_reported)); // Fill the _reported array with ones
+    memset(_reported, 0x1, sizeof(_reported)); // Fill the _reported array with ones.
 
     if (I2C_LENGTH >= 64)
     {
@@ -37,8 +37,8 @@ SPS30::SPS30(void)
     }
 }
 
-// Initialize the communication port, starting of the communication port should happen in main sketch
-bool SPS30::begin(Stream *the_uart)
+// Initialize the communication port, starting of the communication port should happen in main sketch.
+boolean SPS30::begin(Stream *the_uart)
 {
     _serial = the_uart;
     _i2c_mode = false;
@@ -46,8 +46,8 @@ bool SPS30::begin(Stream *the_uart)
     return probe();
 }
 
-// Initialize the communication port, starting of the communication port should happen in main sketch
-bool SPS30::begin(TwoWire *the_wire)
+// Initialize the communication port, starting of the communication port should happen in main sketch.
+boolean SPS30::begin(TwoWire *the_wire)
 {
     _i2c = the_wire;
     _i2c_mode = true;
@@ -55,7 +55,7 @@ bool SPS30::begin(TwoWire *the_wire)
     return probe();
 }
 
-// Enable debugging on a Stream object
+// Enable debugging on a Stream object.
 void SPS30::enable_debugging(Stream *debug)
 {
     _SPS30_debug = true;
@@ -67,14 +67,14 @@ void SPS30::disable_debugging()
     _SPS30_debug = false;
 }
 
-// probe probes the SPS30 to see if it is available
-bool SPS30::probe()
+// probe probes the SPS30 to see if it is available.
+boolean SPS30::probe()
 {
     char buf[32];
     return get_serial_number(buf, 32);
 }
 
-bool SPS30::reset()
+boolean SPS30::reset()
 {
     Message response;
     if (!send_command(&response, RESET))
@@ -86,7 +86,7 @@ bool SPS30::reset()
     return true;
 }
 
-bool SPS30::start()
+boolean SPS30::start()
 {
     Message response;
     if (!send_command(&response, START_MEASUREMENT))
@@ -98,7 +98,7 @@ bool SPS30::start()
     return true;
 }
 
-bool SPS30::stop()
+boolean SPS30::stop()
 {
     Message response;
     if (!send_command(&response, STOP_MEASUREMENT))
@@ -110,10 +110,10 @@ bool SPS30::stop()
     return true;
 }
 
-bool SPS30::clean()
+boolean SPS30::clean()
 {
     Message response;
-    if (!send_command(&response, SHDLC_START_FAN_CLEANING))
+    if (!send_command(&response, START_FAN_CLEANING))
     {
         return false;
     }
@@ -121,7 +121,29 @@ bool SPS30::clean()
     return true;
 }
 
-// get_auto_clean_interval reads the interval into a pointer
+boolean SPS30::sleep()
+{
+    Message response;
+    if (!send_command(&response, SLEEP))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+boolean SPS30::wake_up()
+{
+    Message response;
+    if (!send_command(&response, WAKE_UP))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+// get_auto_clean_interval reads the interval into a pointer.
 uint32_t SPS30::get_auto_clean_interval()
 {
     Message response;
@@ -134,16 +156,16 @@ uint32_t SPS30::get_auto_clean_interval()
     return byte_to_U32(response.data);
 }
 
-// set_auto_clean_interval sets the interval to a value in seconds
-bool SPS30::set_auto_clean_interval(uint32_t val)
+// set_auto_clean_interval sets the interval to a value in seconds.
+boolean SPS30::set_auto_clean_interval(uint32_t val)
 {
     Message response;
 
     return send_command(&response, WRITE_AUTO_CLEANING, val);
 }
 
-// get_values reads all the sensor values and fills them into a pointer struct
-bool SPS30::get_values(struct sps_values *v)
+// get_values reads all the sensor values and fills them into a pointer struct.
+boolean SPS30::get_values(Measurements *v)
 {
     // Has a measurement been started?
     if (_started == false)
@@ -161,20 +183,20 @@ bool SPS30::get_values(struct sps_values *v)
         return false;
     }
 
-    // Check the length of the received message
+    // Check the length of the received message.
     if (response.length != SHDLC_READ_MEASURED_VALUE_LENGTH)
     {
         if (_SPS30_debug)
         {
             _debug->print(response.length);
-            _debug->println(" There aren't enough bytes for all values");
+            _debug->println(" Bytes received. There aren't enough bytes for all values");
         }
         return false;
     }
 
-    memset(v, 0x0, sizeof(struct sps_values)); // Erase the struct
+    memset(v, 0x0, sizeof(Measurements)); // Erase the struct.
 
-    // Extract the data from the array to the struct
+    // Extract the data from the array to the struct.
     v->MassPM1 = byte_to_float(&response.data[0]);
     v->MassPM2 = byte_to_float(&response.data[4]);
     v->MassPM4 = byte_to_float(&response.data[8]);
@@ -190,10 +212,10 @@ bool SPS30::get_values(struct sps_values *v)
     }
 }
 
-// Private functions
+// Private functions.
 
-// get_device_info reads the info to a buffer
-bool SPS30::get_device_info(uint8_t command, char *ser, uint8_t len)
+// get_device_info reads the info to a buffer.
+boolean SPS30::get_device_info(uint8_t command, char *ser, uint8_t len)
 {
     Message response;
 
@@ -205,7 +227,7 @@ bool SPS30::get_device_info(uint8_t command, char *ser, uint8_t len)
     for (uint8_t i = 0; i < len; i++)
     {
         ser[i] = response.data[i];
-        if (ser[i] == NULL) // If the byte is empty the serial number is complete
+        if (ser[i] == NULL) // If the byte is empty the serial number is complete.
         {
             break;
         }
@@ -214,8 +236,37 @@ bool SPS30::get_device_info(uint8_t command, char *ser, uint8_t len)
     return true;
 }
 
-// send_commands sends a command to the SPS30
-bool SPS30::send_command(Message *response, uint8_t command, uint32_t parameter)
+// get_device_status reads out the status register and based on the given command returns one of the statusses to the error boolean. 
+// Based on the clear bit it will read, or read and clear the register.
+boolean SPS30::get_device_status(uint8_t command, boolean *error, boolean clear)
+{
+    Message response;
+
+    if (!send_command(&response, READ_STATUS_REGISTER, clear))
+    {
+        return false;
+    }
+
+    uint32_t status_register = byte_to_U32(&response.data[0]);
+
+    switch (command)
+    {
+    case SPEED:
+        *error = (status_register >> 21) & 0x01;
+        break;
+    case FAN:
+        *error = (status_register >> 4) & 0x01;
+        break;
+    case LASER:
+        *error = (status_register >> 5) & 0x01;
+        break;
+    }
+
+    return true;
+}
+
+// send_commands sends a command to the SPS30.
+boolean SPS30::send_command(Message *response, uint8_t command, uint32_t parameter)
 {
     if ((command == START_FAN_CLEANING) && (_started == false))
     {
@@ -236,18 +287,18 @@ bool SPS30::send_command(Message *response, uint8_t command, uint32_t parameter)
     }
 }
 
-// get_single_value returns a single value read from the sensor
-// It acts as a buffer and only if one value is read more than ones it will get new values
+// get_single_value returns a single value read from the sensor.
+// It acts as a buffer and only if one value is read more than ones it will get new values.
 float SPS30::get_single_value(uint8_t value)
 {
-    static struct sps_values v;
+    static Measurements v;
 
-    if (value > PartSize) // If the requested value does not exist return -1
+    if (value > PartSize) // If the requested value does not exist return -1.
     {
         return -1;
     }
 
-    // If the value has already been read
+    // If the value has already been read.
     if (_reported[value])
     {
         // Get new values
@@ -285,13 +336,8 @@ float SPS30::get_single_value(uint8_t value)
     }
 }
 
-bool SPS30::I2C_send_command(Message *response, uint8_t command, uint32_t parameter)
+boolean SPS30::I2C_send_command(Message *response, uint8_t command, uint32_t parameter)
 {
-    if (command == READ_DEVICE_PRODUCT_NAME) // The I2C doesn't have a read device product name
-    {
-        return true;
-    }
-
     I2C_create_command(response, command, parameter);
 
     if (!I2C_send(response))
@@ -310,9 +356,9 @@ bool SPS30::I2C_send_command(Message *response, uint8_t command, uint32_t parame
     return true;
 }
 
-bool SPS30::I2C_read(Message *message)
+boolean SPS30::I2C_read(Message *message)
 {
-    // Request amount data from the sensor with CRC's
+    // Request amount data from the sensor with CRC's.
     _i2c->requestFrom(message->address, (uint8_t)(message->read_length / 2 * 3));
 
     int i = 0;
@@ -376,7 +422,7 @@ bool SPS30::I2C_read(Message *message)
     return false;
 }
 
-bool SPS30::I2C_send(Message *message)
+boolean SPS30::I2C_send(Message *message)
 {
     if (_SPS30_debug)
     {
@@ -392,6 +438,15 @@ bool SPS30::I2C_send(Message *message)
         _debug->println("");
     }
 
+    if (message->command == I2C_WAKE_UP) // If the sensor needs to be woken up first a pulse needs to be send.
+    {
+        _i2c->beginTransmission(message->address);
+        if (!_i2c->endTransmission())
+        {
+            return false;
+        }
+    }
+
     _i2c->beginTransmission(message->address);
     _i2c->write(message->data, message->length);
 
@@ -403,7 +458,7 @@ bool SPS30::I2C_send(Message *message)
     return true;
 }
 
-bool SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t parameter)
+boolean SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t parameter)
 {
     int i = 0;
     message->address = 0x69;
@@ -414,9 +469,9 @@ bool SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t param
     {
     case START_MEASUREMENT:
         message->command = I2C_START_MEASUREMENT;
-        message->length = 3;       // Add the data length
-        message->data[i++] = 0x03; // Measurement mode
-        message->data[i++] = 0x00; // Dummy byte
+        message->length = 3;       // Add the data length.
+        message->data[i++] = 0x03; // Measurement mode.
+        message->data[i++] = 0x00; // Dummy byte.
         message->data[i++] = I2C_calculate_CRC(message->data);
         break;
 
@@ -434,22 +489,16 @@ bool SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t param
         message->read_length = 40;
         break;
 
+    case SLEEP:
+        message->command = I2C_SLEEP;
+        break;
+
+    case WAKE_UP:
+        message->command = I2C_WAKE_UP;
+        break;
+
     case START_FAN_CLEANING:
         message->command = I2C_START_FAN_CLEANING;
-        break;
-
-    case RESET:
-        message->command = I2C_RESET;
-        break;
-
-    case READ_DEVICE_ARTICLE_CODE:
-        message->command = I2C_READ_DEVICE_ARTICLE_CODE;
-        message->read_length = 32;
-        break;
-
-    case READ_DEVICE_SERIAL_NUMBER:
-        message->command = I2C_READ_DEVICE_SERIAL_NUMBER;
-        message->read_length = 32;
         break;
 
     case READ_AUTO_CLEANING:
@@ -460,13 +509,35 @@ bool SPS30::I2C_create_command(Message *message, uint8_t command, uint32_t param
     case WRITE_AUTO_CLEANING:
         message->command = I2C_READ_WRITE_AUTO_CLEANING;
         message->read_length = 0;
-        message->length = 6;                         // Add the data length
-        message->data[i++] = parameter >> 24 & 0xFF; // Split the parameter in bytes
+        message->length = 6;                         // Add the data length.
+        message->data[i++] = parameter >> 24 & 0xFF; // Split the parameter in bytes.
         message->data[i++] = parameter >> 16 & 0xFF;
         message->data[i++] = I2C_calculate_CRC(message->data);
         message->data[i++] = parameter >> 8 & 0xFF;
         message->data[i++] = parameter & 0xFF;
         message->data[i++] = I2C_calculate_CRC(message->data + 3);
+        break;
+
+    case READ_DEVICE_SERIAL_NUMBER:
+        message->command = I2C_READ_SERIAL_NUMBER;
+        message->read_length = 32;
+        break;
+
+    case READ_DEVICE_PRODUCT_TYPE:
+        message->command = I2C_READ_PRODUCT_TYPE;
+        message->read_length = 32;
+        break;
+
+    case READ_VERSION:
+        message->command = I2C_READ_VERSION;
+        break;
+
+    case READ_STATUS_REGISTER:
+        message->command = I2C_READ_DEVICE_STATUS_REGISTER;
+        break;
+
+    case RESET:
+        message->command = I2C_RESET;
         break;
 
     default:
@@ -498,31 +569,31 @@ uint8_t SPS30::I2C_calculate_CRC(uint8_t *data)
     return crc;
 }
 
-// SHDLC_send_command sends a command and reads back the response into a Message struct
-bool SPS30::SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter)
+// SHDLC_send_command sends a command and reads back the response into a Message struct.
+boolean SPS30::SHDLC_send_command(Message *response, uint8_t command, uint32_t parameter)
 {
-    if (command == READ_DATA_READY) // The SHDLC doesn't have a data ready command
+    if (command == READ_DATA_READY) // The SHDLC doesn't have a data ready command.
     {
         return true;
     }
 
     SHDLC_create_command(response, command, parameter);
 
-    _serial->flush(); // Flush anything pending on the serial port
+    _serial->flush(); // Flush anything pending on the serial port.
 
-    if (!SHDLC_send(response)) // Send the created command
+    if (!SHDLC_send(response)) // Send the created command.
     {
         return false;
     }
 
-    delay(RX_DELAY_MS); // Give the SPS30 some time to respond
+    delay(RX_DELAY_MS); // Give the SPS30 some time to respond.
 
-    if (!SHDLC_read(response)) // Read the response of the SPS30
+    if (!SHDLC_read(response)) // Read the response of the SPS30.
     {
         return false;
     }
 
-    if (response->state != 0) // Check the state response for errors
+    if (response->state != 0) // Check the state response for errors.
     {
         if (_SPS30_debug)
         {
@@ -534,21 +605,21 @@ bool SPS30::SHDLC_send_command(Message *response, uint8_t command, uint32_t para
     return true;
 }
 
-// serial_to_buffer reads the serial input into the buffer and performs byte unstuffing
-bool SPS30::SHDLC_read(Message *response)
+// serial_to_buffer reads the serial input into the buffer and performs byte unstuffing.
+boolean SPS30::SHDLC_read(Message *response)
 {
     uint8_t buffer[MAX_RECEIVE_BUFFER_LENGTH];
 
     uint32_t start_time = millis();
-    bool byte_stuffing = false;
-    bool header_received = false;
+    boolean byte_stuffing = false;
+    boolean header_received = false;
 
     uint8_t i = 0;
     uint8_t buffer_index = 0;
 
-    while (!header_received) // Read the input stream until the last SHDLC_HEADER
+    while (!header_received) // Read the input stream until the last SHDLC_HEADER.
     {
-        if (millis() - start_time > TIME_OUT) // Prevent deadlock by timing out after a while
+        if (millis() - start_time > TIME_OUT) // Prevent deadlock by timing out after a while.
         {
             if (_SPS30_debug > 1)
             {
@@ -563,9 +634,9 @@ bool SPS30::SHDLC_read(Message *response)
         {
             buffer[i] = _serial->read();
 
-            if (i == 0) // If it is the first byte
+            if (i == 0) // If it is the first byte.
             {
-                if (buffer[i] != SHDLC_HEADER) // Check if the received byte is the SHDLC header byte
+                if (buffer[i] != SHDLC_HEADER) // Check if the received byte is the SHDLC header byte.
                 {
 
                     if (_SPS30_debug > 1)
@@ -577,19 +648,19 @@ bool SPS30::SHDLC_read(Message *response)
                     return 0;
                 }
             }
-            else // Else parse the bytes
+            else // Else parse the bytes.
             {
-                if (buffer[i] == SHDLC_STUFFING_BYTE) // If the received byte is a stuffing byte
+                if (buffer[i] == SHDLC_STUFFING_BYTE) // If the received byte is a stuffing byte.
                 {
-                    i--;                  // Remove the stuffing byte
-                    byte_stuffing = true; // And the next byte should be unstuffed
+                    i--;                  // Remove the stuffing byte.
+                    byte_stuffing = true; // And the next byte should be unstuffed.
                 }
                 else if (byte_stuffing)
                 {
                     buffer[i] = byte_unstuffing(buffer[i]);
                     byte_stuffing = false;
                 }
-                else if (buffer[i] == SHDLC_HEADER) // If a trailer byte is received stop the receiving
+                else if (buffer[i] == SHDLC_HEADER) // If a trailer byte is received stop the receiving.
                 {
                     buffer_index = i;
 
@@ -605,9 +676,7 @@ bool SPS30::SHDLC_read(Message *response)
                         _debug->println(buffer_index);
                     }
 
-                    /* if a board can not handle 115K you get uncontrolled input
-                     * that can result in short /wrong messages
-                     */
+                    // If a board can not handle 115K you get uncontrolled input that can result in short or wrong messages.
                     if (buffer_index < 3)
                     {
                         return false;
@@ -641,7 +710,7 @@ bool SPS30::SHDLC_read(Message *response)
         response->data[i] = buffer[SHDLC_DATA_BYTE + i];
     }
 
-    uint8_t crc = SHDLC_calculate_CRC(response, true); // Check the CRC
+    uint8_t crc = SHDLC_calculate_CRC(response, true); // Check the CRC.
 
     if (response->data[response->length] != crc)
     {
@@ -658,8 +727,8 @@ bool SPS30::SHDLC_read(Message *response)
     return true;
 }
 
-// send_to_serial sends the _send_buffer over the set serial connection
-bool SPS30::SHDLC_send(Message *message)
+// send_to_serial sends the _send_buffer over the set serial connection.
+boolean SPS30::SHDLC_send(Message *message)
 {
     if (_SPS30_debug)
     {
@@ -681,14 +750,19 @@ bool SPS30::SHDLC_send(Message *message)
         _debug->println("");
     }
 
+    if (message->command == SHDLC_WAKE_UP) // If the sensor needs to be woken up first a pulse needs to be send.
+    {
+        _serial->write(0xFF);
+    }
+
     _serial->write(SHDLC_HEADER);
     _serial->write(message->address & 0x00FF);
     _serial->write(message->command & 0x00FF);
     _serial->write(message->length);
 
-    for (uint8_t i = 0; i < message->length + 1; i++) // Transmit all the data + CRC
+    for (uint8_t i = 0; i < message->length + 1; i++) // Transmit all the data + CRC.
     {
-        _serial->write(message->data[i]); // Send all the bytes over the set serial
+        _serial->write(message->data[i]); // Send all the bytes over the set serial.
     }
 
     _serial->write(SHDLC_HEADER);
@@ -696,8 +770,8 @@ bool SPS30::SHDLC_send(Message *message)
     return true;
 }
 
-// SHDLC_create_command fills the buffer based on the given command and parameter and returns the length of
-bool SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t parameter)
+// SHDLC_create_command fills the buffer based on the given command and parameter and returns the length of.
+boolean SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t parameter)
 {
     int i = 0;
     uint8_t tmp;
@@ -709,7 +783,7 @@ bool SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t par
     {
     case START_MEASUREMENT:
         message->command = SHDLC_START_MEASUREMENT;
-        message->length = 2; // Add the data length
+        message->length = 2; // Add the data length.
         message->data[i++] = 0x1;
         message->data[i++] = 0x3;
         break;
@@ -722,44 +796,30 @@ bool SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t par
         message->command = SHDLC_READ_MEASURED_VALUE;
         break;
 
+    case SLEEP:
+        message->command = SHDLC_SLEEP;
+        break;
+
+    case WAKE_UP:
+        message->command = SHDLC_WAKE_UP;
+        break;
+
     case START_FAN_CLEANING:
         message->command = SHDLC_START_FAN_CLEANING;
         break;
 
-    case RESET:
-        message->command = SHDLC_RESET;
-        break;
-
-    case READ_DEVICE_PRODUCT_NAME:
-        message->command = SHDLC_READ_DEVICE_INFO;
-        message->length = 1;                                        // Add the data length
-        message->data[i++] = SHDLC_READ_DEVICE_PRODUCT_NAME & 0x0F; // On these reads the command is used as data bytes
-        break;
-
-    case READ_DEVICE_ARTICLE_CODE:
-        message->command = SHDLC_READ_DEVICE_INFO;
-        message->length = 1;                                        // Add the data length
-        message->data[i++] = SHDLC_READ_DEVICE_ARTICLE_CODE & 0x0F; // On these reads the command is used as data bytes
-        break;
-
-    case READ_DEVICE_SERIAL_NUMBER:
-        message->command = SHDLC_READ_DEVICE_INFO;
-        message->length = 1;                                         // Add the data length
-        message->data[i++] = SHDLC_READ_DEVICE_SERIAL_NUMBER & 0x0F; // On these reads the command is used as data bytes
-        break;
-
     case READ_AUTO_CLEANING:
         message->command = SHDLC_AUTO_CLEANING_INTERVAL;
-        message->length = 1;    // Add the data length
-        message->data[i++] = 0; // Add a subcommand, this value must be set to 0
+        message->length = 1;    // Add the data length.
+        message->data[i++] = 0; // Add a subcommand, this value must be set to 0.
         break;
 
     case WRITE_AUTO_CLEANING:
         message->command = SHDLC_AUTO_CLEANING_INTERVAL;
-        message->length = 5;    // Add the data length
-        message->data[i++] = 0; // Add a subcommand, this value must be set to 0
+        message->length = 5;    // Add the data length.
+        message->data[i++] = 0; // Add a subcommand, this value must be set to 0.
 
-        tmp = parameter >> 24 & 0xFF; // Add the (byte stuffed) parameter
+        tmp = parameter >> 24 & 0xFF; // Add the (byte stuffed) parameter.
         i = byte_stuffing(message->data, tmp, i);
         tmp = parameter >> 16 & 0xFF;
         i = byte_stuffing(message->data, tmp, i);
@@ -769,20 +829,45 @@ bool SPS30::SHDLC_create_command(Message *message, uint8_t command, uint32_t par
         i = byte_stuffing(message->data, tmp, i);
         break;
 
+    case READ_DEVICE_PRODUCT_TYPE:
+        message->command = SHDLC_READ_DEVICE_INFO;
+        message->length = 1;                                 // Add the data length.
+        message->data[i++] = SHDLC_READ_DEVICE_PRODUCT_TYPE; // On these reads the command is used as data bytes.
+        break;
+
+    case READ_DEVICE_SERIAL_NUMBER:
+        message->command = SHDLC_READ_DEVICE_INFO;
+        message->length = 1;                                  // Add the data length.
+        message->data[i++] = SHDLC_READ_DEVICE_SERIAL_NUMBER; // On these reads the command is used as data bytes.
+        break;
+
+    case READ_VERSION:
+        message->command = SHDLC_READ_VERSION;
+        break;
+
+    case READ_STATUS_REGISTER:
+        message->command = SHDCL_READ_STATUS_REGISTER;
+        message->length = 1;
+        message->data[i++] = parameter; // 0 for read, 1 for read and clear.
+        break;
+
+    case RESET:
+        message->command = SHDLC_RESET;
+        break;
+
     default:
         return false;
     }
 
-    // Add the CRC and check it for byte stuffing
+    // Add the CRC and check it for byte stuffing.
     tmp = SHDLC_calculate_CRC(message, false);
     i = byte_stuffing(message->data, tmp, i);
 
     return true;
 }
 
-// SHDLC_calculate_CRC calculates the CRC, the CRC is calculated by taking the inverse of the LSB of the sum of all the bytes between the headers->
-// First indicates the offset of the first byte to calculate from, and last the offset of the last byte->
-uint8_t SPS30::SHDLC_calculate_CRC(Message *message, bool received)
+// SHDLC_calculate_CRC calculates the CRC, the CRC is calculated by taking the inverse of the LSB of the sum of all the bytes between the headers.
+uint8_t SPS30::SHDLC_calculate_CRC(Message *message, boolean received)
 {
     uint32_t crc = 0;
 
@@ -803,7 +888,7 @@ uint8_t SPS30::SHDLC_calculate_CRC(Message *message, bool received)
     return ~(crc & 0xff);
 }
 
-// byte_stuffing checks if a byte needs stuffing and stuffs it
+// byte_stuffing checks if a byte needs stuffing and stuffs it.
 uint8_t SPS30::byte_stuffing(uint8_t *buffer, uint8_t value, uint8_t offset)
 {
     uint8_t x = 0;
@@ -838,7 +923,7 @@ uint8_t SPS30::byte_stuffing(uint8_t *buffer, uint8_t value, uint8_t offset)
     return offset;
 }
 
-// byte_unstuffing unstuffs stuffed bytes
+// byte_unstuffing unstuffs stuffed bytes.
 uint8_t SPS30::byte_unstuffing(uint8_t value)
 {
     switch (value)
@@ -862,7 +947,7 @@ uint8_t SPS30::byte_unstuffing(uint8_t value)
     }
 }
 
-// byte_to_float translates a byte array to a float
+// byte_to_float translates a byte array to a float.
 float SPS30::byte_to_float(uint8_t *buffer)
 {
     uint32_t value;
@@ -878,7 +963,7 @@ float SPS30::byte_to_float(uint8_t *buffer)
     return float_value;
 }
 
-// byte_to_U32 translates a byte array to an uint32_t
+// byte_to_U32 translates a byte array to an uint32_t.
 uint32_t SPS30::byte_to_U32(uint8_t *buffer)
 {
     uint32_t value;
