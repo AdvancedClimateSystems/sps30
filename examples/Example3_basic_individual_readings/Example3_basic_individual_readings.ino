@@ -24,35 +24,32 @@
 
 #include "sps30.h"
 
-// Define debug level, make sure to change the serial interface in the printf.h to the one you want to use for debugging
-// 0 : no messages.
-// 1 : request sending and receiving.
-// 2 : request sending and receiving + show protocol errors.
-#define DEBUG 0
+// Enable the debugging mode
+#define DEBUG true
 
-// Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30.
+// Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30
 #define _SERIAL Serial
 #define _SPS30 Serial1
 
-// Change the sensor read out frequency.
+// Change the sensor read out frequency
 #define READ_DELAY 3000
 
 // Edit the array with the values you want to readout.
 // Any read value can be added, even multiple times.
 // Input options are defined in the readme.
 uint8_t values[] = {MassPM1, NumPM1, MassPM2, NumPM2};
-uint8_t value_size = sizeof(values) / sizeof(values[0]);
 
 //
 // You don't have to change anything below this
 //
 
+uint8_t value_size = sizeof(values) / sizeof(values[0]);
+
 // Function prototypes (sometimes the pre-processor does not create prototypes themself on ESPxx)
-void serial_trigger(char *mess);
 void error_log(char *mess);
 void get_device_info();
 void print_device_info(char *mess, char *buf, uint8_t ret);
-bool read_sensor_data();
+boolean read_sensor_data();
 
 SPS30_UART sps30;
 
@@ -60,10 +57,9 @@ void setup()
 {
   _SERIAL.begin(115200);
 
-  while (!_SERIAL)
+  while (!_SERIAL) // Wait for the serial monitor to connect to the debug serial.
     ;
 
-  serial_trigger("SPS30-Example1: Basic reading. press <enter> to start");
   _SERIAL.println(F("Trying to connect"));
 
   sps30.enable_debugging(DEBUG); // Set the debug level.
@@ -89,8 +85,6 @@ void setup()
   {
     error_log("Could not start the measurement");
   }
-
-  serial_trigger("Hit <enter> to continue reading!");
 }
 
 void loop()
@@ -103,22 +97,19 @@ void loop()
 void get_device_info()
 {
   char buf[32];
-  uint8_t ret;
+  boolean succeeded;
 
-  ret = sps30.get_serial_number(buf, 32); // Read the serial number
-  print_device_info("Serial number", buf, ret);
+  succeeded = sps30.get_serial_number(buf, 32); // Read the serial number
+  print_device_info("Serial number", buf, succeeded);
 
-  ret = sps30.get_product_name(buf, 32); // Read the product name
-  print_device_info("Product name", buf, ret);
-
-  ret = sps30.get_article_code(buf, 32); // Read the article code
-  print_device_info("Article code", buf, ret);
+  succeeded = sps30.get_product_type(buf, 32); // Read the product name
+  print_device_info("Product type", buf, succeeded);
 }
 
 // print_device_info prints a string based on the ret value and the provided message
-void print_device_info(char *mess, char *buf, uint8_t ret)
+void print_device_info(char *mess, char *buf, boolean succeeded)
 {
-  if (ret == ERR_OK)
+  if (succeeded == true)
   {
     _SERIAL.print(mess);
     _SERIAL.print(" : ");
@@ -131,19 +122,21 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
     {
       _SERIAL.println(F("not available"));
     }
+    _SERIAL.println("");
   }
   else
   {
-    _SERIAL.print("could not get the");
+    _SERIAL.print("could not get the ");
     _SERIAL.print(mess);
     _SERIAL.println(".");
+    _SERIAL.println("");
   }
 }
 
-bool read_sensor_data()
+boolean read_sensor_data()
 {
-  static bool header = true;
-  struct sps_values val;
+  static boolean header = true;
+  Measurements val;
 
   if (header) // First run create the header.
   {
@@ -241,20 +234,4 @@ void error_log(char *mess)
   _SERIAL.println(mess);
   _SERIAL.println("Restarting program!");
   setup();
-}
-
-void serial_trigger(char *mess)
-{
-  _SERIAL.println();
-  _SERIAL.println(mess);
-
-  while (!_SERIAL.available())
-  {
-    // Wait till something is sent over the serial line
-  }
-
-  while (_SERIAL.available())
-  {
-    _SERIAL.read(); // Empty the read buffer
-  }
 }

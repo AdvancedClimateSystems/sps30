@@ -1,14 +1,11 @@
-#######################################
 # Syntax Coloring Map
 # SPS30  // ProAce, 2020 
-#######################################
 
-#######################################
 # Datatypes (KEYWORD1)
-#######################################
 
 SPS30	KEYWORD1
-sps_values	KEYWORD1
+Values	KEYWORD1
+Version KEYWORD1
 MassPM1	KEYWORD1
 MassPM1	KEYWORD1
 MassPM2	KEYWORD1
@@ -21,20 +18,27 @@ NumPM4	KEYWORD1
 NumPM10	KEYWORD1
 PartSize	KEYWORD1
 
-#######################################
 # Methods and Functions (KEYWORD2)
-#######################################
 
 SPS30	KEYWORD2
 begin	KEYWORD2
 enable_debugging	KEYWORD2
+disable_debugging   KEYWORD1
 probe	KEYWORD2
 reset	KEYWORD2
 start	KEYWORD2
 stop	KEYWORD2
+clean   KEYWORD2
+sleep   KEYWORD2
+wake_up KEYWORD2
+get_auto_clean_interval	KEYWORD2
+set_auto_clean_interval	KEYWORD2
 get_serial_number	KEYWORD2
-get_article_code	KEYWORD2
-get_product_name	KEYWORD2
+get_product_type	KEYWORD2
+read_version    KEYWORD2
+read_speed_status   KEYWORD2
+read_fan_status KEYWORD2
+read_laser_status   KEYWORD2
 get_values	KEYWORD2
 get_mass_PM1	KEYWORD2
 get_mass_PM2	KEYWORD2
@@ -46,7 +50,3 @@ get_num_PM2	KEYWORD2
 get_num_PM4	KEYWORD2
 get_num_PM10	KEYWORD2
 get_part_size	KEYWORD2
-get_auto_clean_interval	KEYWORD2
-set_auto_clean_interval	KEYWORD2
-clean	KEYWORD2
-

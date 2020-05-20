@@ -24,11 +24,8 @@
 
 #include "sps30.h"
 
-// Define debug level, make sure to change the serial interface in the printf.h to the one you want to use for debugging
-// 0 : no messages
-// 1 : request sending and receiving
-// 2 : request sending and receiving + show protocol errors
-#define DEBUG 0
+// Enable the debugging mode
+#define DEBUG true
 
 // Define the serial port you want to use for debugging information and the serial port you want to use for the SPS30
 #define _SERIAL Serial
@@ -45,26 +42,27 @@
 //
 
 // Function prototypes (sometimes the pre-processor does not create prototypes themself on ESPxx)
-void serial_trigger(char *mess);
 void error_log(char *mess);
 void get_device_info();
-void print_device_info(char *mess, char *buf, uint8_t ret);
+void print_device_info(char *mess, char *buf, boolean succeeded);
 void get_and_set_auto_clean_interval();
-bool read_sensor_data();
+boolean read_sensor_data();
 
-SPS30_UART sps30;
+SPS30 sps30;
 
 void setup()
 {
   _SERIAL.begin(115200);
 
-  while (!_SERIAL)
+  while (!_SERIAL) // Wait for the serial monitor to connect to the debug serial.
     ;
 
-  serial_trigger("SPS30-Example1: Basic reading. press <enter> to start");
   _SERIAL.println(F("Trying to connect"));
 
-  sps30.enable_debugging(DEBUG); // Set the debug level.
+  if (DEBUG == true)
+  {
+    sps30.enable_debugging(&_SERIAL); // Enable debugging.
+  }
 
   _SPS30.begin(115200);              // Start the Serial port you want to use at a baudrate of 115200bps.
   if (sps30.begin(&_SPS30) == false) // Pass the serial port along to the library and check if the SPS30 is available.
@@ -89,8 +87,6 @@ void setup()
   {
     error_log("Could not start the measurement");
   }
-
-  serial_trigger("Hit <enter> to continue reading!");
 }
 
 void loop()
@@ -103,22 +99,19 @@ void loop()
 void get_device_info()
 {
   char buf[32];
-  uint8_t ret;
+  boolean succeeded;
 
-  ret = sps30.get_serial_number(buf, 32); // Read the serial number
-  print_device_info("Serial number", buf, ret);
+  succeeded = sps30.get_serial_number(buf, 32); // Read the serial number
+  print_device_info("Serial number", buf, succeeded);
 
-  ret = sps30.get_product_name(buf, 32); // Read the product name
-  print_device_info("Product name", buf, ret);
-
-  ret = sps30.get_article_code(buf, 32); // Read the article code
-  print_device_info("Article code", buf, ret);
+  succeeded = sps30.get_product_type(buf, 32); // Read the product name
+  print_device_info("Product type", buf, succeeded);
 }
 
 // print_device_info prints a string based on the ret value and the provided message
-void print_device_info(char *mess, char *buf, uint8_t ret)
+void print_device_info(char *mess, char *buf, boolean succeeded)
 {
-  if (ret == ERR_OK)
+  if (succeeded == true)
   {
     _SERIAL.print(mess);
     _SERIAL.print(" : ");
@@ -131,12 +124,14 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
     {
       _SERIAL.println(F("not available"));
     }
+    _SERIAL.println("");
   }
   else
   {
-    _SERIAL.print("could not get the");
+    _SERIAL.print("could not get the ");
     _SERIAL.print(mess);
     _SERIAL.println(".");
+    _SERIAL.println("");
   }
 }
 
@@ -144,10 +139,10 @@ void print_device_info(char *mess, char *buf, uint8_t ret)
 void get_and_set_auto_clean_interval()
 {
   uint32_t interval;
-  uint8_t ret;
+  boolean succeeded;
 
-  ret = sps30.get_auto_clean_interval(&interval); // Read the auto cleaning interval
-  if (ret == ERR_OK)
+  succeeded = sps30.get_auto_clean_interval(&interval); // Read the auto cleaning interval
+  if (succeeded == true)
   {
     _SERIAL.print(F("Current auto cleaning interval: "));
     _SERIAL.print(interval);
@@ -160,8 +155,8 @@ void get_and_set_auto_clean_interval()
 
   // try to set interval
   interval = AUTOCLEANINTERVAL;
-  ret = sps30.set_auto_clean_interval(interval);
-  if (ret == ERR_OK)
+  succeeded = sps30.set_auto_clean_interval(interval);
+  if (succeeded == true)
   {
     _SERIAL.print(F("Auto Clean interval now set : "));
     _SERIAL.print(interval);
@@ -174,10 +169,10 @@ void get_and_set_auto_clean_interval()
 }
 
 // read_sensor_data reads the sensor data
-bool read_sensor_data()
+boolean read_sensor_data()
 {
-  static bool header = true;
-  struct sps_values val;
+  static boolean header = true;
+  Measurements val;
 
   while (sps30.get_values(&val) == false)
   {
@@ -219,20 +214,4 @@ void error_log(char *mess)
   _SERIAL.println(mess);
   _SERIAL.println("Restarting program!");
   setup();
-}
-
-void serial_trigger(char *mess)
-{
-  _SERIAL.println();
-  _SERIAL.println(mess);
-
-  while (!_SERIAL.available())
-  {
-    // Wait till something is sent over the serial line
-  }
-
-  while (_SERIAL.available())
-  {
-    _SERIAL.read(); // Empty the read buffer
-  }
 }

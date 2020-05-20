@@ -39,11 +39,10 @@
 //
 
 // Function prototypes (sometimes the pre-processor does not create prototypes themself on ESPxx)
-void serial_trigger(char *mess);
 void error_log(char *mess);
 void get_device_info();
-void print_device_info(char *mess, char *buf, uint8_t ret);
-bool read_sensor_data();
+void print_device_info(char *mess, char *buf, boolean succeeded);
+boolean read_sensor_data();
 
 SPS30 sps30;
 
@@ -51,10 +50,9 @@ void setup()
 {
   _SERIAL.begin(115200);
 
-  while (!_SERIAL)
+  while (!_SERIAL) // Wait for the serial monitor to connect to the debug serial.
     ;
 
-  serial_trigger("SPS30-Example1: Basic reading. press <enter> to start");
   _SERIAL.println(F("Trying to connect"));
 
   if (DEBUG == true)
@@ -83,8 +81,6 @@ void setup()
   {
     error_log("Could not start the measurement");
   }
-
-  serial_trigger("Hit <enter> to continue reading!");
 }
 
 void loop()
@@ -97,20 +93,17 @@ void loop()
 void get_device_info()
 {
   char buf[32];
-  bool succeeded;
+  boolean succeeded;
 
   succeeded = sps30.get_serial_number(buf, 32); // Read the serial number
   print_device_info("Serial number", buf, succeeded);
 
-  succeeded = sps30.get_product_name(buf, 32); // Read the product name
-  print_device_info("Product name", buf, succeeded);
-
-  succeeded = sps30.get_article_code(buf, 32); // Read the article code
-  print_device_info("Article code", buf, succeeded);
+  succeeded = sps30.get_product_type(buf, 32); // Read the product name
+  print_device_info("Product type", buf, succeeded);
 }
 
 // print_device_info prints a string based on the ret value and the provided message
-void print_device_info(char *mess, char *buf, bool succeeded)
+void print_device_info(char *mess, char *buf, boolean succeeded)
 {
   if (succeeded == true)
   {
@@ -137,10 +130,10 @@ void print_device_info(char *mess, char *buf, bool succeeded)
 }
 
 // read_sensor_data reads the sensor data
-bool read_sensor_data()
+boolean read_sensor_data()
 {
-  static bool header = true;
-  struct sps_values val;
+  static boolean header = true;
+  Measurements val;
 
   while (sps30.get_values(&val) == false)
   {
@@ -182,20 +175,4 @@ void error_log(char *mess)
   _SERIAL.println(mess);
   _SERIAL.println("Restarting program!");
   setup();
-}
-
-void serial_trigger(char *mess)
-{
-  _SERIAL.println();
-  _SERIAL.println(mess);
-
-  while (!_SERIAL.available())
-  {
-    // Wait till something is sent over the serial line
-  }
-
-  while (_SERIAL.available())
-  {
-    _SERIAL.read(); // Empty the read buffer
-  }
 }
